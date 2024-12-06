@@ -1,4 +1,4 @@
-name: Smartdns List
+name: SmartDns List
 
 on:
   schedule:
@@ -231,7 +231,7 @@ jobs:
         uses: EndBug/add-and-commit@main
         with:
           default_author: github_actions
-          message: "Smartdns List"
+          message: "SmartDns List"
           add: "*conf"
 
       - name: Delete workflow runs
