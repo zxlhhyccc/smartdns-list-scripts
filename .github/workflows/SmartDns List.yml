@@ -121,8 +121,12 @@ jobs:
               cd "$TMP_DIR"
 
               # 聚合IP范围和进程
-              aggregate -q < clang.txt > whitelist-ip.conf
-             
+              aggregate -q < clang.txt > whitelist-chnroute.conf
+
+              while read -r line; do
+                echo "whitelist-ip $line" >> whitelist-ip.conf
+              done < whitelist-chnroute.conf
+
               cd "$CUR_DIR"
           }
 
