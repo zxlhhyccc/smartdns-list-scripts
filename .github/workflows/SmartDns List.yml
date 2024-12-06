@@ -114,7 +114,7 @@ jobs:
               cd "$TMP_DIR"
 
               # 聚合IP范围和进程
-              aggregate -q < clang.txt > whitelist-ip.conf
+              pandas -q < clang.txt > whitelist-ip.conf
              
               cd "$CUR_DIR"
           }
