@@ -7,7 +7,7 @@ on:
 
 jobs:
   SmartDns_List:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@main
 
@@ -15,7 +15,7 @@ jobs:
         run: |
           sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
           sudo -E apt-get -qq update
-          sudo -E pip install aggregate
+          sudo -E apt-get -qq install aggregate
           sudo -E apt-get -qq autoremove --purge
           sudo -E apt-get -qq clean
 
@@ -114,7 +114,7 @@ jobs:
               cd "$TMP_DIR"
 
               # 聚合IP范围和进程
-              pandas -q < clang.txt > whitelist-ip.conf
+              awk '{print $1}' clang.txt | sort -u > whitelist-ip.conf
              
               cd "$CUR_DIR"
           }
