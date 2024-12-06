@@ -1,0 +1,252 @@
+name: Smartdns List
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+jobs:
+  Smartdns_List:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+
+      - name: Initialization environment
+        run: |
+          sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo -E apt-get -qq update
+          sudo -E apt-get -qq install aggregate
+          sudo -E apt-get -qq autoremove --purge
+          sudo -E apt-get -qq clean
+
+      - name: Run script
+        run: |
+          #!/bin/bash -e
+          set -o pipefail
+
+          CUR_DIR=$(pwd)
+          TMP_DIR=$(mktemp -d /tmp/list.XXXXXX)
+
+          # 更新 Smartdns GFWlist 规则
+          fetch_gfwlist_data() {
+              cd "$TMP_DIR"
+
+              # 并行下载
+              # curl -sSl https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt | \
+              curl -sSl https://fastly.jsdelivr.net/gh/gfwlist/gfwlist/gfwlist.txt | \
+                base64 -d | sort -u | sed '/^$\|@@/d' | sed 's#!.\+##; s#|##g; s#@##g; s#http:\/\/##; s#https:\/\/##;' | \
+                sed '/apple\.com/d; /sina\.cn/d; /sina\.com\.cn/d; /baidu\.com/d; /qq\.com/d' | \
+                sed '/^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$/d' | grep '^[0-9a-zA-Z\.-]\+$' | \
+                grep '\.' | sed 's#^\.\+##' | sort -u > temp_gfwlist1 &
+
+              curl -sSl https://fastly.jsdelivr.net/gh/YW5vbnltb3Vz/domain-list-community@release/gfwlist.txt | \
+                base64 -d | sort -u | sed '/^$\|@@/d' | sed 's#!.\+##; s#|##g; s#@##g; s#http:\/\/##; s#https:\/\/##;' | \
+                sed '/apple\.com/d; /sina\.cn/d; /sina\.com\.cn/d; /baidu\.com/d; /qq\.com/d' | \
+                sed '/^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+$/d' | grep '^[0-9a-zA-Z\.-]\+$' | \
+                grep '\.' | sed 's#^\.\+##' | sort -u > temp_gfwlist2 &
+
+              #curl -sSl https://raw.githubusercontent.com/hq450/fancyss/master/rules/gfwlist.conf | \
+              curl -sSl https://fastly.jsdelivr.net/gh/hq450/fancyss/rules/gfwlist.conf | \
+                sed 's/ipset=\/\.//g; s/\/gfwlist//g; /^server/d' > temp_gfwlist3 &
+
+              #curl -sSl https://testingcf.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/proxy-list.txt | \
+              curl -sSl https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/proxy-list.txt | \
+                sed "/^$/d;s/\r//g;s/^[ ]*$//g;/^#/d;/regexp:/d;s/full://g" > temp_gfwlist4 &
+
+              #curl -sSl https://raw.githubusercontent.com/Loyalsoldier/v2ray-rules-dat/release/gfw.txt > temp_gfwlist5 &
+              curl -sSl https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/gfw.txt > temp_gfwlist5 &
+
+              #curl -sS https://raw.githubusercontent.com/ixmu/smartdns-conf/refs/heads/main/script/cust_gfwdomain.conf > temp_gfwlist6 &
+              curl -sSl https://fastly.jsdelivr.net/gh/ixmu/smartdns-conf/script/cust_gfwdomain.conf > temp_gfwlist6 &
+
+              # 等待所有后台进程完成
+              wait
+
+              cd "$CUR_DIR"
+          }
+
+          # 生成最终的GFW列表
+          gen_gfwlist_data() {
+              cd "$TMP_DIR"
+
+              # 合并所有临时文件，清理并保存到输出文件
+              cat temp_gfwlist1 temp_gfwlist2 temp_gfwlist3 temp_gfwlist4 temp_gfwlist5 temp_gfwlist6 | \
+                sort -u | sed 's/^\s*//g; s/\s*$//g' > gfwlist.txt
+
+              # 删除空行并输出到最终配置
+              sed -e '/^$/d' gfwlist.txt > proxy-domain-list.conf
+             
+              cd "$CUR_DIR"
+          }
+
+          fetch_gfwlist_data
+          gen_gfwlist_data
+
+          # 更新 Smartdns IPV4 白名单
+          fetch_whitelist_data() {
+              cd "$TMP_DIR"
+
+              # 获取不同的IP列表
+              #qqwry=$(curl -kLfsm 5 https://raw.githubusercontent.com/metowolf/iplist/master/data/special/china.txt)
+              qqwry=$(curl -kLfsm 5 https://fastly.jsdelivr.net/gh/metowolf/iplist/data/special/china.txt)
+
+              #ipipnet=$(curl -kLfsm 5 https://raw.githubusercontent.com/17mon/china_ip_list/master/china_ip_list.txt)
+              ipipnet=$(curl -kLfsm 5 https://fastly.jsdelivr.net/gh/17mon/china_ip_list/china_ip_list.txt)
+
+              clang=$(curl -kLfsm 5 https://ispip.clang.cn/all_cn.txt)
+                sed "/^$/d;s/\r//g;s/^[ ]*$//g;/^#/d;/regexp:/d;s/full://g" > temp_gfwlist4 &
+
+              clangcidr=$(curl -kLfsm 5 https://ispip.clang.cn/all_cn_cidr.txt)
+
+              operatorIP=$(curl -kLfsm 5 https://fastly.jsdelivr.net/gh/gaoyifan/china-operator-ip@ip-lists/china.txt)
+
+              iplist="${qqwry}\n${ipipnet}\n${clang}\n${clangcidr}\n${operatorIP}"
+              echo -e "$iplist" | sort -u | sed -e '/^$/d' > clang.txt
+
+              # 等待所有后台进程完成
+              wait
+
+              cd "$CUR_DIR"
+          }
+
+          # 生成 IPv4 白名单
+          gen_whitelist_data() {
+              cd "$TMP_DIR"
+
+              # 聚合IP范围和进程
+              aggregate -q < clang.txt > whitelist-ip.conf
+             
+              cd "$CUR_DIR"
+          }
+
+          fetch_whitelist_data
+          gen_whitelist_data
+
+          # 更新 Smartdns IPV4 黑名单
+          fetch_blacklist_data() {
+              cd "$TMP_DIR"
+
+              # 获取黑名单 IP 列表
+              BLACKLIST=$(curl -kLfsm 5 "https://fastly.jsdelivr.net/gh/LittleJake/ip-blacklist/ustc_blacklist_ip.txt") 
+
+              # 删除空行和无效行并输出到最终列表
+              echo -e "$BLACKLIST" | sed -e '/^$/d' > IP_List.txt
+
+              # 等待所有后台进程完成
+              wait
+
+              cd "$CUR_DIR"
+          }
+
+          # 生成 IPv4 黑名单
+          gen_blacklist_data() {
+              cd "$TMP_DIR"
+
+              # 处理每一行
+              while IFS= read -r ip; do
+                  if [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(/[0-9]+)?$ ]]; then
+                  		if [[ $ip =~ / ]]; then
+                  	# 如果有子网，直接添加 blacklist-ip 前缀
+                  	echo "blacklist-ip $ip" >> Blacklist-IPv4.conf
+                  		else
+                  	# 如果没有子网，添加 /32 和 blacklist-ip 前缀
+                  	echo "blacklist-ip $ip/32" >> Blacklist-IPv4.conf
+                  		fi
+                  fi
+              done < IP_List.txt
+
+              # 排序 IP 地址并还原格式
+              awk '
+              {
+                  if ($1 == "blacklist-ip") {
+                      ip_cidr = $2
+                      split(ip_cidr, parts, "/")
+                      ip = parts[1]
+                      cidr = parts[2] ? parts[2] : 32
+                      # 将IP转换为单个数字进行排序
+                      n = 0
+                      split(ip, octets, ".")
+                      for (i = 1; i <= 4; i++) {
+                          n = n * 256 + octets[i]
+                     }
+                  # 输出IP号和CIDR以便排序
+                  print n, ip, cidr
+                  }
+               }' Blacklist-IPv4.conf | sort -n | awk '{print "blacklist-ip " $2 "/" $3}' > blacklist-ip.conf
+
+              cd "$CUR_DIR"
+          }
+
+          fetch_blacklist_data
+          gen_blacklist_data
+
+          # 更新 Smartdns China List 规则
+          fetch_chinalist_data() {
+              cd "$TMP_DIR"
+
+              # 获取中国域名列表数据
+              # accelerated_domains=$(curl -kLfsm 5 https://raw.githubusercontent.com/felixonmars/dnsmasq-china-list/master/accelerated-domains.china.conf)
+              accelerated_domains=$(curl -kLfsm 5 https://fastly.jsdelivr.net/gh/felixonmars/dnsmasq-china-list/accelerated-domains.china.conf)
+
+              #curl -sSl https://testingcf.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/direct-list.txt | \
+              direct_list=$(curl -kLfsm 5 https://fastly.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/direct-list.txt)
+
+              # 提取域名并输出到临时文件
+              echo -e "$direct_list" | \
+                sed "/^$/d;s/\r//g;s/^[ ]*$//g;/^#/d;/regexp:/d;s/full://g" > temp_direct_domains
+
+              # 等待所有后台进程完成
+              wait
+
+              cd "$CUR_DIR"
+          }
+
+          # 生成中国域名列表
+          gen_chinalist_data() {
+              cd "$TMP_DIR"
+
+              # 通过组合、排序和清理域名生成列表
+              direct_domains=$(cat temp_direct_domains)
+              domain_list="${accelerated_domains}\n${direct_domains}"
+
+              # 提取域名、删除空行和无效行并输出到最终列表
+              echo -e "$domain_list" | \
+                sort | uniq | \
+                sed -e 's/#.*//g' -e '/^$/d' -e 's/server=\///g' -e 's/\/114.114.114.114//g' | \
+                	sort -u > direct-domain-list.conf
+
+              cd "$CUR_DIR"
+          }
+
+          fetch_chinalist_data
+          gen_chinalist_data
+
+          copy_data() {
+              install -D -m 644 $TMP_DIR/{*-list.conf,*-ip.conf} $CUR_DIR
+          }
+
+          copy_data
+
+      - name: push
+        uses: EndBug/add-and-commit@main
+        with:
+          default_author: github_actions
+          message: "Smartdns List"
+          add: "*conf"
+
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@main
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: 2
+          keep_minimum_runs: 22
+
+      - name: purge
+        run: |
+          sleep 6
+          curl -sSL https://purge.jsdelivr.net/gh/zxlhhyccc/list-scripts/proxy-domain-list.conf
+          curl -sSL https://purge.jsdelivr.net/gh/zxlhhyccc/list-scripts/whitelist-ip.conf
+          curl -sSL https://purge.jsdelivr.net/gh/zxlhhyccc/list-scripts/blacklist-ip.conf
+          curl -sSL https://purge.jsdelivr.net/gh/zxlhhyccc/list-scripts/direct-domain-list.conf
+
