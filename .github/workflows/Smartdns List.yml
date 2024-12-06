@@ -14,6 +14,7 @@ jobs:
       - name: Initialization environment
         run: |
           sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo -E add-apt-repository ppa:some/ppa
           sudo -E apt-get -qq update
           sudo -E apt-get -qq install aggregate
           sudo -E apt-get -qq autoremove --purge
