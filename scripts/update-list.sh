@@ -252,7 +252,7 @@ awk '
         # 输出IP号和CIDR以便排序
         print n, ip, cidr
     }
-}' "$OUTPUT_FILE" | sort -n | awk '{print "blacklist-ip " $2 "/" $3}' > blacklist-ip.conf
+}' "$OUTPUT_FILE" | sort -n | awk '{print "blacklist-ip " $2 "/" $3}' > $BLACKLIST_IPV4
 
     # 将排序后的IP地址添加到黑名单文件中
     cat "$BLACKLIST_IPV4" >> "$BLACKLIST_OUTPUT_FILE"
