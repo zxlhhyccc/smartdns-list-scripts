@@ -1,4 +1,4 @@
-name: SmartDns List
+name: SmartDNS List
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  SmartDns_List:
+  SmartDNS_List:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@main
@@ -242,7 +242,7 @@ jobs:
         uses: EndBug/add-and-commit@main
         with:
           default_author: github_actions
-          message: "SmartDns List"
+          message: "SmartDNS List"
           add: "*conf"
 
       - name: Delete workflow runs
